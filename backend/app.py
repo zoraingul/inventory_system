@@ -18,6 +18,5 @@ cursor = db.cursor(dictionary=True)
 def home():
     return "Backend is running successfully"
 
-
 if __name__ == "__main__":
     app.run(debug=True)
