@@ -206,7 +206,7 @@ def update_item(item_id):
 
     return jsonify({'message': 'Item updated Successfully'})
 
-@app.route('items/<int:item_id>', methods = ["DELETE"])
+@app.route('/items/<int:item_id>', methods = ["DELETE"])
 def delete_item(item_id):
     try:
         cursor.execute("UPDATE items SET is_delete = 1 where item_id = %s" , (item_id,))
@@ -215,8 +215,68 @@ def delete_item(item_id):
     except mysql.connector.Error as e:
         return jsonify({'error': str(e)}) , 500
 
+#stock logs
+@app.route('/stock', methods = ["POST"])
+def add_stock():
+    #requesting data
+    data = request.get_json()
+    
+    item_id = data.get('item_id')
+    change_type = data.get('change_type')
+    quantity = data.get('quantity')
+    user_id = data.get('user_id')
+    #validation
+    if not item_id or not change_type or quantity is None or not user_id:
+        return jsonify({"message": "All fields are required"})
+    
+    if change_type not in ["in" , "out"]:
+        return jsonify({"message": "Change type should be in or out"})
+    
+    #handle stock validation
+    if change_type == "out":
+        #fetchig item 
+        cursor.execute("Select quantity from items where item_id = %s AND is_deleted=0" , (item_id,))
+        
+        item = cursor.fetchone()
+        if not item:
+            return jsonify ({"message": "Item not found"}) , 404 
+        
+        if item['quantity'] < quantity: #prevent negative stock
+            return jsonify ({"Not enough stock to remove"}) , 400
+    
+        #reduce stock quantity
+        cursor.execute("UPDATE items SET quantity = quantity - %s WHERE item_id = %s" , (quantity , item_id))
 
-# ----------------- HOME ROUTE -----------------
+    else: #Stock in , increase quantity
+        cursor.execute("UPDATE items SET quantity = quantity + %s WHERE item_id = %s" , (quantity , item_id))
+
+    #log stock changes in log table 
+    cursor.execute("INSERT into stock_logs (item_id, change_type, quantity, user_id) VALUES (%s, %s, %s, %s)",(item_id, change_type, quantity, user_id))
+    db.commit()
+    return jsonify({'message' : f'Stock {change_type} recorded successfully'})
+
+@app.route('/stock' , methods= ["GET"])
+def get_stock_logs():
+    cursor.execute(
+    """
+        Select 
+            sl.log_id , 
+            i.item_name, 
+            sl.change_type , 
+            sl.quantity,
+            sl.username , 
+            sl.timestamp
+        From stock_logs sl
+        JOIN items i on sl.item_id = i.item_id
+        JOIN users u on sl.user_id = u.user_id
+        Order by sl.timestamp DESC
+    """)
+    
+    logs = cursor.fetchall()
+    return jsonify(logs)
+
+
+# HOME ROUTE 
 @app.route('/')
 def home():
     return "Backend is running successfully"
