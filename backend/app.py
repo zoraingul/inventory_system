@@ -76,7 +76,6 @@ def create_category():
     category_name = data.get('category_name')
     description = data.get('description')
     created_by = data.get('created_by')
-    print ("Categories Working")
     if not category_name or not created_by:
         return jsonify({'error': 'Category name and creator are required'}), 400
     
@@ -206,6 +205,15 @@ def update_item(item_id):
     db.commit()
 
     return jsonify({'message': 'Item updated Successfully'})
+
+@app.route('items/<int:item_id>', methods = ["DELETE"])
+def delete_item(item_id):
+    try:
+        cursor.execute("UPDATE items SET is_delete = 1 where item_id = %s" , (item_id,))
+        db.commit()
+        return jsonify({'message': 'Item deleted successfully'})
+    except mysql.connector.Error as e:
+        return jsonify({'error': str(e)}) , 500
 
 
 # ----------------- HOME ROUTE -----------------
